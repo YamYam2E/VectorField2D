@@ -1,14 +1,16 @@
+using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
 public partial class VectorField2D : MonoBehaviour
 {
-    [Header("For Debugging")] [SerializeField]
-    private bool isShowGroundArea;
-
+    [Header("For Debugging")] 
+    [SerializeField] private bool isShowGroundArea;
     [SerializeField] private bool isShowObstacleArea;
-
+    [SerializeField] private TextMeshPro tileText;
+    
     [Space] 
     [SerializeField] private Vector2Int mapSize;
     [SerializeField] private Transform goalTransform;
@@ -21,15 +23,29 @@ public partial class VectorField2D : MonoBehaviour
     private Vector3Int fromGround, fromObstacle, toGround, toObstacle;
     private List<Vector2> obstaclePositions = new();
     private List<Vector2> groundPositions = new();
-    private Vector3Int goalPosition;
+    private Vector3Int goalIndex;
     
     private Tile[,] fields;
+    private int fieldWidth;
+    private int fieldHeight;
+    
+    private readonly List<Vector2Int> directions = new();
     
     private void Start()
     {
         Initialize();
         UpdateGoalPosition();
         CreateFields();
+        
+        CreateHeatMap();
+        
+        foreach (var field in fields)
+        {
+            var tileInfo = Instantiate(tileText);
+            tileInfo.transform.position = field.Position;
+            tileInfo.text = field.Distance.ToString();
+            tileInfo.gameObject.SetActive(true);
+        }
     }
 
     private void Initialize()
@@ -43,6 +59,10 @@ public partial class VectorField2D : MonoBehaviour
 
         var size = groundTilemap.size;
         fields = new Tile[size.x, size.y];
+        fieldWidth = size.x;
+        fieldHeight = size.y;
+        
+        SetDirections();
     }
 
     private void OnDrawGizmos()
@@ -93,7 +113,7 @@ public partial class VectorField2D : MonoBehaviour
             for (var y = fromObstacle.y; y < toObstacle.y; ++y)
             {
                 var tileWorldPosition = obstacleTilemap.transform.position + new Vector3(x, y);
-                var tileIndex = obstacleTilemap.WorldToCell(tileWorldPosition);
+                var tileIndex = obstacleTilemap.LocalToCell(tileWorldPosition);
                 var tile = obstacleTilemap.GetTile(tileIndex);
 
                 if (tile == null)
@@ -114,7 +134,7 @@ public partial class VectorField2D : MonoBehaviour
             for (var y = fromGround.y; y < toGround.y; ++y)
             {
                 var tileWorldPosition = groundTilemap.transform.position + new Vector3(x, y);
-                var tileIndex = groundTilemap.WorldToCell(tileWorldPosition);
+                var tileIndex = groundTilemap.LocalToCell(tileWorldPosition);
                 var tile = groundTilemap.GetTile(tileIndex);
 
                 if (tile == null)
@@ -143,7 +163,7 @@ public partial class VectorField2D
             {
                 // * Ground
                 var tileWorldPosition = groundTilemap.transform.position + new Vector3(x, y);
-                var tileIndex = groundTilemap.WorldToCell(tileWorldPosition);
+                var tileIndex = groundTilemap.LocalToCell(tileWorldPosition);
                 var groundTile = groundTilemap.GetTile(tileIndex);
                 var obstacleTile = obstacleTilemap.GetTile(tileIndex);
                 
@@ -169,10 +189,69 @@ public partial class VectorField2D
 
     private void UpdateGoalPosition()
     {
-        var position = groundTilemap.WorldToCell(groundTilemap.transform.position + goalTransform.position);
+        var position = groundTilemap.LocalToCell(groundTilemap.transform.position + goalTransform.position);
 
-        // Debug.Log(position + (Vector3)tileWorldOffset);
+        goalIndex = new Vector3Int(fieldWidth / 2, fieldHeight / 2) - position;
+    }
 
-        goalPosition = position;
+    private Queue<Tile> tileQueue = new();
+    private void CreateHeatMap()
+    {
+        tileQueue.Clear();
+        fields[goalIndex.x, goalIndex.y].Distance = 0;
+        tileQueue.Enqueue(fields[goalIndex.x, goalIndex.y]);
+        
+        // while (tileQueue.Count > 0)
+        // {
+        //     var tile = tileQueue.Dequeue();
+        //
+        //     if (tile.IsBlock)
+        //         continue;
+        //
+        //     SetTileDistance(ref tile);
+        // }
+    }
+
+    private void SetTileDistance(ref Tile tile)
+    {
+        var distance = tile.Distance + 1;
+
+        for (var index = 0; index < directions.Count; index++)
+        {
+            var x = tile.Index.x + directions[index].x;
+            var y = tile.Index.y + directions[index].y;
+
+            if (x < 0 || x >= groundTilemap.size.x || y < 0 || y >= groundTilemap.size.y)
+                continue;
+
+            if (fields[x, y].IsBlock)
+                continue;
+
+            if (fields[x, y].Distance > -1)
+            {
+                if (fields[x, y].Distance > distance)
+                    fields[x, y].Distance = distance;
+            }
+            else
+            {
+                fields[x, y].Distance = distance;
+                tileQueue.Enqueue(fields[x, y]);
+            }
+        }
+    }
+
+    private void SetDirections()
+    {
+        if (directions.Count != 0)
+            return;
+
+        directions.Add(new Vector2Int { x = 1, y = 0 });
+        directions.Add(new Vector2Int { x = -1, y = 0 });
+        directions.Add(new Vector2Int { x = 0, y = 1 });
+        directions.Add(new Vector2Int { x = 0, y = -1 });
+        directions.Add(new Vector2Int { x = 1, y = 1 });
+        directions.Add(new Vector2Int { x = 1, y = -1 });
+        directions.Add(new Vector2Int { x = -1, y = -1 });
+        directions.Add(new Vector2Int { x = -1, y = 1 });
     }
 }
