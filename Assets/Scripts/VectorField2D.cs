@@ -28,7 +28,7 @@ public partial class VectorField2D : MonoBehaviour
     private Tile[,] fields;
     private int fieldWidth;
     private int fieldHeight;
-    
+    private Queue<Tile> tileQueue = new();
     private readonly List<Vector2Int> directions = new();
     
     private void Start()
@@ -43,7 +43,7 @@ public partial class VectorField2D : MonoBehaviour
         {
             var tileInfo = Instantiate(tileText);
             tileInfo.transform.position = field.Position;
-            tileInfo.text = field.Distance.ToString();
+            tileInfo.text = $"{field.Distance}";//$"({field.Index.x},{field.Index.y})";
             tileInfo.gameObject.SetActive(true);
         }
     }
@@ -191,25 +191,28 @@ public partial class VectorField2D
     {
         var position = groundTilemap.LocalToCell(groundTilemap.transform.position + goalTransform.position);
 
-        goalIndex = new Vector3Int(fieldWidth / 2, fieldHeight / 2) - position;
+        goalIndex = position + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
+        
+        Debug.Log($"\n" +
+                  $"-> Update Goal Position : [{position}]\n-> Fixed Goal Index: [{goalIndex}]");
     }
-
-    private Queue<Tile> tileQueue = new();
+    
     private void CreateHeatMap()
     {
         tileQueue.Clear();
+        
         fields[goalIndex.x, goalIndex.y].Distance = 0;
         tileQueue.Enqueue(fields[goalIndex.x, goalIndex.y]);
         
-        // while (tileQueue.Count > 0)
-        // {
-        //     var tile = tileQueue.Dequeue();
-        //
-        //     if (tile.IsBlock)
-        //         continue;
-        //
-        //     SetTileDistance(ref tile);
-        // }
+        while (tileQueue.Count > 0)
+        {
+            var tile = tileQueue.Dequeue();
+        
+            if (tile.IsBlock)
+                continue;
+        
+            SetTileDistance(ref tile);
+        }
     }
 
     private void SetTileDistance(ref Tile tile)
