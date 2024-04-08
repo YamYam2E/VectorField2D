@@ -216,7 +216,7 @@ public partial class VectorField2D
 
     #endregion
 
-    #region 2. VectorField
+    #region 2. Vector Field
 
     private void OnClickCreateVectorField()
     {
@@ -235,9 +235,6 @@ public partial class VectorField2D
 
     private void SetTileVector(ref Tile tile)
     {
-        var nearBlockTile = false;
-        var minimumDistance = 9999;
-        var minimumDirection = Vector2.zero;
         var direction = Vector2.zero;
 
         for (var index = 0; index < directions.Count; index++)
@@ -249,21 +246,12 @@ public partial class VectorField2D
                 continue;
 
             if (fields[x, y].IsBlock)
-                nearBlockTile = true;
-
-            direction += fields[x, y].Distance * directions[index];
-
-            if (fields[x, y].Distance == -1 || fields[x, y].Distance >= minimumDistance)
-                continue;
-
-            minimumDistance = fields[x, y].Distance;
-            minimumDirection = directions[index];
+                direction += tile.Distance * directions[index];
+            else
+                direction += fields[x, y].Distance * directions[index];
         }
 
-        if (nearBlockTile)
-            tile.Direction = minimumDirection;
-        else
-            tile.Direction = -direction;
+        tile.Direction = -direction;
         
         SetArrowAngle(ref tile);
     }
@@ -287,6 +275,7 @@ public partial class VectorField2D
     }
 
     #endregion
+    
     private void SetDirections()
     {
         if (directions.Count != 0)
@@ -296,10 +285,10 @@ public partial class VectorField2D
         directions.Add(new Vector2Int { x = -1, y = 0 });
         directions.Add(new Vector2Int { x = 0, y = 1 });
         directions.Add(new Vector2Int { x = 0, y = -1 });
-        directions.Add(new Vector2Int { x = 1, y = 1 });
-        directions.Add(new Vector2Int { x = 1, y = -1 });
-        directions.Add(new Vector2Int { x = -1, y = -1 });
-        directions.Add(new Vector2Int { x = -1, y = 1 });
+        // directions.Add(new Vector2Int { x = 1, y = 1 });
+        // directions.Add(new Vector2Int { x = 1, y = -1 });
+        // directions.Add(new Vector2Int { x = -1, y = -1 });
+        // directions.Add(new Vector2Int { x = -1, y = 1 });
     }
 
     public Vector2 GetDirection(Vector3 position)
@@ -307,5 +296,67 @@ public partial class VectorField2D
         var tilePosition = groundTilemap.LocalToCell(groundTilemap.transform.position + position);
         var tileIndex = tilePosition + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
         return fields[tileIndex.x, tileIndex.y].Direction;
+    }
+}
+
+public partial class VectorField2D
+{
+    private bool isTouch;
+    
+    private void Update()
+    {
+        if (Input.GetMouseButtonDown(0) && !isTouch)
+        {
+            isTouch = true;
+            
+            var position = groundTilemap.LocalToCell(groundTilemap.transform.position + Camera.main.ScreenToWorldPoint(Input.mousePosition));
+            goalIndex = position + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
+            
+            CreateVectorFieldDirectly();
+        }
+        
+        if (Input.GetMouseButtonUp(0) && isTouch)
+        {
+            isTouch = false;
+        }
+    }
+
+    private void CreateVectorFieldDirectly()
+    {
+        tileQueue.Clear();
+        foreach (var tile in drawTiles)
+            tile.Value.gameObject.SetActive(false);
+
+        foreach (var arrow in drawArrows)
+            arrow.Value.gameObject.SetActive(false);
+        
+        foreach (var field in fields)
+            field.Distance = -1;
+
+        createHeatmapButton.interactable = false;
+        
+        fields[goalIndex.x, goalIndex.y].Distance = 0;
+        tileQueue.Enqueue(fields[goalIndex.x, goalIndex.y]);
+
+        while (tileQueue.Count > 0)
+        {
+            var tile = tileQueue.Dequeue();
+
+            if (tile.IsBlock)
+                continue;
+
+            SetTileDistance(ref tile);
+        }
+
+        foreach (var tile in drawTiles)
+            tile.Value.gameObject.SetActive(false);
+        
+        createHeatmapButton.interactable = true;
+        
+        foreach (var field in fields)
+        {
+            var tile = field;
+            SetTileVector(ref tile);
+        }
     }
 }

@@ -4,7 +4,7 @@ public class Chaser : MonoBehaviour
 {
     [SerializeField] private VectorField2D vectorField;
 
-    public float moveSpeed = 3.0f;
+    public float moveSpeed = 10.0f;
     private Rigidbody2D rb;
     
     private void Awake()
@@ -15,8 +15,10 @@ public class Chaser : MonoBehaviour
     private void FixedUpdate()
     {
         var direction = vectorField.GetDirection(transform.position);
-        var moveVelocity = direction.normalized * Time.fixedDeltaTime * moveSpeed;
+        var moveVelocity = direction.normalized * moveSpeed;
         rb.velocity = Vector2.zero;
-        rb.MovePosition(rb.position + moveVelocity);
+        rb.AddForce(moveVelocity);
+        
+        // rb.MovePosition(rb.position + moveVelocity);
     }
 }
