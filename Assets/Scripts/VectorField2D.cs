@@ -10,7 +10,8 @@ public partial class VectorField2D : MonoBehaviour
 {
     [SerializeField] private TextMeshPro tileText;
     [SerializeField] private Transform tileArrow;
-
+    [SerializeField] private Chaser chaser;
+    
     [Space] 
     [SerializeField] private Vector2Int mapSize;
     [SerializeField] private Transform goalTransform;
@@ -23,7 +24,8 @@ public partial class VectorField2D : MonoBehaviour
     [Range(0f, 5f)] public float searchingTime;
     [SerializeField] private Button createHeatmapButton;
     [SerializeField] private Button drawVectorFieldButton;
-
+    [SerializeField] private Button createChaserButton;
+    
     private readonly Vector2 tileWorldOffset = new(0.5f, 0.5f);
     private readonly List<Vector2Int> directions = new();
     
@@ -45,7 +47,7 @@ public partial class VectorField2D
     {
         createHeatmapButton.onClick.AddListener(OnClickCreateHeatmap);
         drawVectorFieldButton.onClick.AddListener(OnClickCreateVectorField);
-
+        createChaserButton.onClick.AddListener(OnClickCreateChaser);
         Initialize();
         CreateFields();
         CreateDrawObjects();
@@ -251,7 +253,7 @@ public partial class VectorField2D
 
             direction += fields[x, y].Distance * directions[index];
 
-            if (fields[x, y].Distance == -1 || fields[x, y].Distance > minimumDistance)
+            if (fields[x, y].Distance == -1 || fields[x, y].Distance >= minimumDistance)
                 continue;
 
             minimumDistance = fields[x, y].Distance;
@@ -277,6 +279,14 @@ public partial class VectorField2D
 
     #endregion
 
+    #region 3. Create Chaser
+
+    private void OnClickCreateChaser()
+    {
+        chaser.gameObject.SetActive(true);
+    }
+
+    #endregion
     private void SetDirections()
     {
         if (directions.Count != 0)
@@ -286,9 +296,16 @@ public partial class VectorField2D
         directions.Add(new Vector2Int { x = -1, y = 0 });
         directions.Add(new Vector2Int { x = 0, y = 1 });
         directions.Add(new Vector2Int { x = 0, y = -1 });
-        // directions.Add(new Vector2Int { x = 1, y = 1 });
-        // directions.Add(new Vector2Int { x = 1, y = -1 });
-        // directions.Add(new Vector2Int { x = -1, y = -1 });
-        // directions.Add(new Vector2Int { x = -1, y = 1 });
+        directions.Add(new Vector2Int { x = 1, y = 1 });
+        directions.Add(new Vector2Int { x = 1, y = -1 });
+        directions.Add(new Vector2Int { x = -1, y = -1 });
+        directions.Add(new Vector2Int { x = -1, y = 1 });
+    }
+
+    public Vector2 GetDirection(Vector3 position)
+    {
+        var tilePosition = groundTilemap.LocalToCell(groundTilemap.transform.position + position);
+        var tileIndex = tilePosition + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
+        return fields[tileIndex.x, tileIndex.y].Direction;
     }
 }
