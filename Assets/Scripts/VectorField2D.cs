@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Net;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using Button = UnityEngine.UI.Button;
+using Random = UnityEngine.Random;
 
 public partial class VectorField2D : MonoBehaviour
 {
@@ -272,6 +274,49 @@ public partial class VectorField2D
     private void OnClickCreateChaser()
     {
         chaser.gameObject.SetActive(true);
+
+        CreateChaser(10);
+    }
+    
+    private void CreateChaser(int count)
+    {
+        var currentIndex = 0;
+
+        while (currentIndex < count)
+        {
+            var randomCoordinate = GetRandomCoordinate();
+            
+            // 계산된 임의 좌표는 카메라에 보이는 스크린의 크기를 기준으로 나와있기 때문에,
+            // Debug.Log("임의 좌표: " + randomCoordinate);
+            // ScreenToWorldPoint를 통해서 포지션의 값을 갱신 하고, 해당 포지션의 타일맵 정보를 매칭
+            var position = groundTilemap.LocalToCell(
+                groundTilemap.transform.position + 
+                Camera.main.ScreenToWorldPoint(randomCoordinate));    
+        
+            var index = position + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
+
+            if (fields[index.x, index.y].IsBlock)
+                continue;
+
+            var newChaser = Instantiate(chaser);
+            newChaser.transform.position = position;
+            newChaser.gameObject.SetActive(true);
+            
+            currentIndex += 1;
+        }
+    }
+    
+    private Vector2 GetRandomCoordinate()
+    {
+        // 화면 크기 가져오기
+        var screenSize = new Vector2(Screen.width, Screen.height);
+
+        // 0과 1 사이의 임의 값 생성
+        var randomX = Random.Range(0.0f, 1.0f);
+        var randomY = Random.Range(0.0f, 1.0f);
+
+        // 화면 크기에 임의 값을 곱하여 임의 좌표 계산
+        return new Vector2(randomX * screenSize.x, randomY * screenSize.y); 
     }
 
     #endregion
@@ -285,10 +330,10 @@ public partial class VectorField2D
         directions.Add(new Vector2Int { x = -1, y = 0 });
         directions.Add(new Vector2Int { x = 0, y = 1 });
         directions.Add(new Vector2Int { x = 0, y = -1 });
-        // directions.Add(new Vector2Int { x = 1, y = 1 });
-        // directions.Add(new Vector2Int { x = 1, y = -1 });
-        // directions.Add(new Vector2Int { x = -1, y = -1 });
-        // directions.Add(new Vector2Int { x = -1, y = 1 });
+        directions.Add(new Vector2Int { x = 1, y = 1 });
+        directions.Add(new Vector2Int { x = 1, y = -1 });
+        directions.Add(new Vector2Int { x = -1, y = -1 });
+        directions.Add(new Vector2Int { x = -1, y = 1 });
     }
 
     public Vector2 GetDirection(Vector3 position)
