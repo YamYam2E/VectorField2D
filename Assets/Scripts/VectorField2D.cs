@@ -183,10 +183,10 @@ public partial class VectorField2D
 
         for (var index = 0; index < directions.Count; index++)
         {
-            if (directions[index].x + directions[index].y == 2 ||
-                directions[index].x + directions[index].y == 0 ||
-                directions[index].x + directions[index].y == -2)
-                continue;
+            // if (directions[index].x + directions[index].y == 2 ||
+            //     directions[index].x + directions[index].y == 0 ||
+            //     directions[index].x + directions[index].y == -2)
+            //     continue;
 
             var x = tile.Index.x + directions[index].x;
             var y = tile.Index.y + directions[index].y;
@@ -295,7 +295,9 @@ public partial class VectorField2D
         
             var index = position + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
 
-            if (fields[index.x, index.y].IsBlock)
+            if (index.x < 0 || index.y < 0 || 
+                index.x >= fieldWidth || index.y >= fieldHeight || 
+                fields[index.x, index.y].IsBlock)
                 continue;
 
             var newChaser = Instantiate(chaser);
