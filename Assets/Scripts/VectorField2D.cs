@@ -1,7 +1,5 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Net;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -16,14 +14,12 @@ public partial class VectorField2D : MonoBehaviour
     
     [Space] 
     [SerializeField] private Vector2Int mapSize;
-    [SerializeField] private Transform goalTransform;
 
     [Space] 
     [SerializeField] private Tilemap groundTilemap;
     [SerializeField] private Tilemap obstacleTilemap;
 
     [Space] 
-    [Range(0f, 5f)] public float searchingTime;
     [SerializeField] private Button createHeatmapButton;
     [SerializeField] private Button drawVectorFieldButton;
     [SerializeField] private Button createChaserButton;
@@ -32,7 +28,7 @@ public partial class VectorField2D : MonoBehaviour
     private readonly List<Vector2Int> directions = new();
     
     private Vector3Int fromGround, fromObstacle, toGround, toObstacle;
-    private Vector3Int goalIndex;
+    private Vector2Int goalIndex;
 
     private Tile[,] fields;
     private int fieldWidth;
@@ -47,12 +43,15 @@ public partial class VectorField2D
 {
     private void Start()
     {
-        createHeatmapButton.onClick.AddListener(OnClickCreateHeatmap);
-        drawVectorFieldButton.onClick.AddListener(OnClickCreateVectorField);
         createChaserButton.onClick.AddListener(OnClickCreateChaser);
+        
         Initialize();
         CreateFields();
         CreateDrawObjects();
+        
+        UpdateGoalPosition();
+        CreateHeatMap();
+        // CreateVectorField();
     }
 
     private void Initialize()
@@ -73,9 +72,6 @@ public partial class VectorField2D
         SetDirections();
     }
     
-    /// <summary>
-    /// 필드의 가중치를 적용하기 위해 TileMap 기준 인덱스 및 포지션 값을 저장한 배열을 만든다.
-    /// </summary>
     private void CreateFields()
     {
         var fieldX = 0;
@@ -129,13 +125,13 @@ public partial class VectorField2D
 
     private void UpdateGoalPosition()
     {
-        var position = groundTilemap.LocalToCell(groundTilemap.transform.position + goalTransform.position);
-        goalIndex = position + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
+        var position = groundTilemap.WorldToCell(groundTilemap.transform.position);
+        goalIndex = (Vector2Int)position + new Vector2Int(fieldWidth / 2, fieldHeight / 2);
     }
 
     #region 1. Heatmap
 
-    private void OnClickCreateHeatmap()
+    private void CreateHeatMap()
     {
         tileQueue.Clear();
         foreach (var tile in drawTiles)
@@ -143,21 +139,27 @@ public partial class VectorField2D
 
         foreach (var arrow in drawArrows)
             arrow.Value.gameObject.SetActive(false);
-        
+
         foreach (var field in fields)
             field.Distance = -1;
 
         createHeatmapButton.interactable = false;
         
-        UpdateGoalPosition();
-        StartCoroutine(CreateTileHeatmap_internal());
+        CreateHeatMap_internal(true);
     }
 
-    private IEnumerator CreateTileHeatmap_internal()
+    private void CreateHeatMap_internal(bool drawDistance = false)
     {
         fields[goalIndex.x, goalIndex.y].Distance = 0;
-        drawTiles[fields[goalIndex.x, goalIndex.y].Index].text = $"{fields[goalIndex.x, goalIndex.y].Distance}";
-        drawTiles[fields[goalIndex.x, goalIndex.y].Index].gameObject.SetActive(true);
+
+        if (drawDistance)
+        {
+            drawTiles[fields[goalIndex.x, goalIndex.y].Index].color = Color.red;
+            drawTiles[fields[goalIndex.x, goalIndex.y].Index].text = $"{fields[goalIndex.x, goalIndex.y].Distance}";
+        }
+
+        drawTiles[fields[goalIndex.x, goalIndex.y].Index].gameObject.SetActive(drawDistance);
+        
 
         tileQueue.Enqueue(fields[goalIndex.x, goalIndex.y]);
 
@@ -168,51 +170,50 @@ public partial class VectorField2D
             if (tile.IsBlock)
                 continue;
 
-            SetTileDistance(ref tile);
-
-            if (searchingTime > 0f)
-                yield return new WaitForSeconds(searchingTime);
+            SetTileDistance(ref tile, drawDistance);
         }
 
         createHeatmapButton.interactable = true;
     }
 
-    private void SetTileDistance(ref Tile tile)
+    private void SetTileDistance(ref Tile tile, bool drawDistance = false)
     {
         var distance = tile.Distance + 1;
 
         for (var index = 0; index < directions.Count; index++)
         {
-            // if (directions[index].x + directions[index].y == 2 ||
-            //     directions[index].x + directions[index].y == 0 ||
-            //     directions[index].x + directions[index].y == -2)
-            //     continue;
+            var nearTileIndex = tile.Index + directions[index];
 
-            var x = tile.Index.x + directions[index].x;
-            var y = tile.Index.y + directions[index].y;
-
-            if (x == goalIndex.x && y == goalIndex.y)
+            if (nearTileIndex == goalIndex)
                 continue;
 
-            if (x < 0 || x >= groundTilemap.size.x || y < 0 || y >= groundTilemap.size.y)
+            if (nearTileIndex.x < 0 || nearTileIndex.x >= groundTilemap.size.x || nearTileIndex.y < 0 || nearTileIndex.y >= groundTilemap.size.y)
                 continue;
 
-            if (fields[x, y].IsBlock)
+            if (fields[nearTileIndex.x, nearTileIndex.y].IsBlock)
                 continue;
 
-            if (fields[x, y].Distance > -1)
+            if (fields[nearTileIndex.x, nearTileIndex.y].Distance > -1)
             {
-                if (fields[x, y].Distance > distance)
-                    fields[x, y].Distance = distance;
+                if (fields[nearTileIndex.x, nearTileIndex.y].Distance > distance)
+                    fields[nearTileIndex.x, nearTileIndex.y].Distance = distance;
             }
             else
             {
-                fields[x, y].Distance = distance;
-                tileQueue.Enqueue(fields[x, y]);
+                fields[nearTileIndex.x, nearTileIndex.y].Distance = distance;
+                tileQueue.Enqueue(fields[nearTileIndex.x, nearTileIndex.y]);
             }
 
-            drawTiles[fields[x, y].Index].text = $"{fields[x, y].Distance}";
-            drawTiles[fields[x, y].Index].gameObject.SetActive(true);
+            if (drawDistance)
+            {
+                drawTiles[fields[nearTileIndex.x, nearTileIndex.y].Index].color = Color.white;
+                drawTiles[fields[nearTileIndex.x, nearTileIndex.y].Index].text = $"{fields[nearTileIndex.x, nearTileIndex.y].Distance}";
+            }
+
+            drawTiles[fields[nearTileIndex.x, nearTileIndex.y].Index].gameObject.SetActive(drawDistance);
+            
+
+            
         }
     }
 
@@ -220,7 +221,7 @@ public partial class VectorField2D
 
     #region 2. Vector Field
 
-    private void OnClickCreateVectorField()
+    private void CreateVectorField()
     {
         foreach (var tile in drawTiles)
             tile.Value.gameObject.SetActive(false);
@@ -230,6 +231,9 @@ public partial class VectorField2D
         
         foreach (var field in fields)
         {
+            if (field.IsBlock)
+                continue;
+            
             var tile = field;
             SetTileVector(ref tile);
         }
@@ -238,23 +242,57 @@ public partial class VectorField2D
     private void SetTileVector(ref Tile tile)
     {
         var direction = Vector2.zero;
+        var isNearObstacle = false;
 
         for (var index = 0; index < directions.Count; index++)
         {
             var x = tile.Index.x + directions[index].x;
             var y = tile.Index.y + directions[index].y;
 
-            if (x < 0 || x >= groundTilemap.size.x || y < 0 || y >= groundTilemap.size.y)
+            if (!fields[x, y].IsBlock) 
                 continue;
-
-            if (fields[x, y].IsBlock)
-                direction += tile.Distance * directions[index];
-            else
-                direction += fields[x, y].Distance * directions[index];
+            
+            isNearObstacle = true;
+            break;
         }
 
-        tile.Direction = -direction;
+        if (isNearObstacle)
+        {
+            var minimumDistance = int.MaxValue;
+            
+            for (var index = 0; index < directions.Count; index++)
+            {
+                var x = tile.Index.x + directions[index].x;
+                var y = tile.Index.y + directions[index].y;
+
+                if (x < 0 || x >= groundTilemap.size.x || y < 0 || y >= groundTilemap.size.y)
+                    continue;
+
+                if (fields[x, y].IsBlock)
+                    continue;
+
+                if (minimumDistance > fields[x, y].Distance)
+                {
+                    minimumDistance = fields[x, y].Distance;
+                    direction = -directions[index];
+                }      
+            }
+        }
+        else
+        {
+            for (var index = 0; index < directions.Count; index++)
+            {
+                var x = tile.Index.x + directions[index].x;
+                var y = tile.Index.y + directions[index].y;
+
+                if (x < 0 || x >= groundTilemap.size.x || y < 0 || y >= groundTilemap.size.y)
+                    continue;
+
+                direction += fields[x, y].Distance * directions[index];    
+            }
+        }
         
+        tile.Direction = -direction;
         SetArrowAngle(ref tile);
     }
 
@@ -356,10 +394,11 @@ public partial class VectorField2D
         {
             isTouch = true;
             
-            var position = groundTilemap.LocalToCell(groundTilemap.transform.position + Camera.main.ScreenToWorldPoint(Input.mousePosition));
-            goalIndex = position + new Vector3Int(fieldWidth / 2, fieldHeight / 2);
+            var position = groundTilemap.WorldToCell(groundTilemap.transform.position + Camera.main.ScreenToWorldPoint(Input.mousePosition));
+            goalIndex = (Vector2Int)position + new Vector2Int(fieldWidth / 2, fieldHeight / 2);
             
-            CreateVectorFieldDirectly();
+            CreateHeatMap();
+            CreateVectorField();
         }
         
         if (Input.GetMouseButtonUp(0) && isTouch)
