@@ -19,15 +19,10 @@ public partial class VectorField2D : MonoBehaviour
     [SerializeField] private Tilemap groundTilemap;
     [SerializeField] private Tilemap obstacleTilemap;
 
-    [Space] 
-    [SerializeField] private Button createHeatmapButton;
-    [SerializeField] private Button drawVectorFieldButton;
-    [SerializeField] private Button createChaserButton;
-    
     private readonly Vector2 tileWorldOffset = new(0.5f, 0.5f);
     private readonly List<Vector2Int> directions = new();
     
-    private Vector3Int fromGround, fromObstacle, toGround, toObstacle;
+    private Vector3Int fromGround, toGround;
     private Vector2Int goalIndex;
 
     private Tile[,] fields;
@@ -43,24 +38,18 @@ public partial class VectorField2D
 {
     private void Start()
     {
-        createChaserButton.onClick.AddListener(OnClickCreateChaser);
-        
         Initialize();
         CreateFields();
+        CreateChaser(20);
         CreateDrawObjects();
         
         UpdateGoalPosition();
-        CreateHeatMap();
-        // CreateVectorField();
     }
 
     private void Initialize()
     {
         fromGround = groundTilemap.origin;
         toGround = groundTilemap.size + groundTilemap.origin;
-
-        fromObstacle = obstacleTilemap.origin;
-        toObstacle = obstacleTilemap.size + obstacleTilemap.origin;
 
         var size = groundTilemap.size;
         fields = new Tile[size.x, size.y];
@@ -143,9 +132,7 @@ public partial class VectorField2D
         foreach (var field in fields)
             field.Distance = -1;
 
-        createHeatmapButton.interactable = false;
-        
-        CreateHeatMap_internal(true);
+        CreateHeatMap_internal();
     }
 
     private void CreateHeatMap_internal(bool drawDistance = false)
@@ -159,7 +146,6 @@ public partial class VectorField2D
         }
 
         drawTiles[fields[goalIndex.x, goalIndex.y].Index].gameObject.SetActive(drawDistance);
-        
 
         tileQueue.Enqueue(fields[goalIndex.x, goalIndex.y]);
 
@@ -172,8 +158,6 @@ public partial class VectorField2D
 
             SetTileDistance(ref tile, drawDistance);
         }
-
-        createHeatmapButton.interactable = true;
     }
 
     private void SetTileDistance(ref Tile tile, bool drawDistance = false)
@@ -190,30 +174,29 @@ public partial class VectorField2D
             if (nearTileIndex.x < 0 || nearTileIndex.x >= groundTilemap.size.x || nearTileIndex.y < 0 || nearTileIndex.y >= groundTilemap.size.y)
                 continue;
 
-            if (fields[nearTileIndex.x, nearTileIndex.y].IsBlock)
+            var nearTile = fields[nearTileIndex.x, nearTileIndex.y];
+            
+            if (nearTile.IsBlock)
                 continue;
 
-            if (fields[nearTileIndex.x, nearTileIndex.y].Distance > -1)
+            if (nearTile.Distance > -1)
             {
-                if (fields[nearTileIndex.x, nearTileIndex.y].Distance > distance)
-                    fields[nearTileIndex.x, nearTileIndex.y].Distance = distance;
+                if (nearTile.Distance > distance)
+                    nearTile.Distance = distance;
             }
             else
             {
-                fields[nearTileIndex.x, nearTileIndex.y].Distance = distance;
-                tileQueue.Enqueue(fields[nearTileIndex.x, nearTileIndex.y]);
+                nearTile.Distance = distance;
+                tileQueue.Enqueue(nearTile);
             }
 
             if (drawDistance)
             {
-                drawTiles[fields[nearTileIndex.x, nearTileIndex.y].Index].color = Color.white;
-                drawTiles[fields[nearTileIndex.x, nearTileIndex.y].Index].text = $"{fields[nearTileIndex.x, nearTileIndex.y].Distance}";
+                drawTiles[nearTile.Index].color = Color.white;
+                drawTiles[nearTile.Index].text = $"{nearTile.Distance}";
             }
 
-            drawTiles[fields[nearTileIndex.x, nearTileIndex.y].Index].gameObject.SetActive(drawDistance);
-            
-
-            
+            drawTiles[nearTile.Index].gameObject.SetActive(drawDistance);
         }
     }
 
@@ -298,6 +281,9 @@ public partial class VectorField2D
 
     private void SetArrowAngle(ref Tile tile)
     {
+        if (tile.Index == goalIndex)
+            return;
+        
         var arrow = drawArrows[tile.Index];
         
         var angle = Math.Atan2(tile.Direction.y, tile.Direction.x) * (180f / Math.PI);
@@ -309,13 +295,6 @@ public partial class VectorField2D
 
     #region 3. Create Chaser
 
-    private void OnClickCreateChaser()
-    {
-        chaser.gameObject.SetActive(true);
-
-        CreateChaser(10);
-    }
-    
     private void CreateChaser(int count)
     {
         var currentIndex = 0;
@@ -323,11 +302,7 @@ public partial class VectorField2D
         while (currentIndex < count)
         {
             var randomCoordinate = GetRandomCoordinate();
-            
-            // 계산된 임의 좌표는 카메라에 보이는 스크린의 크기를 기준으로 나와있기 때문에,
-            // Debug.Log("임의 좌표: " + randomCoordinate);
-            // ScreenToWorldPoint를 통해서 포지션의 값을 갱신 하고, 해당 포지션의 타일맵 정보를 매칭
-            var position = groundTilemap.LocalToCell(
+            var position = groundTilemap.WorldToCell(
                 groundTilemap.transform.position + 
                 Camera.main.ScreenToWorldPoint(randomCoordinate));    
         
@@ -404,45 +379,6 @@ public partial class VectorField2D
         if (Input.GetMouseButtonUp(0) && isTouch)
         {
             isTouch = false;
-        }
-    }
-
-    private void CreateVectorFieldDirectly()
-    {
-        tileQueue.Clear();
-        foreach (var tile in drawTiles)
-            tile.Value.gameObject.SetActive(false);
-
-        foreach (var arrow in drawArrows)
-            arrow.Value.gameObject.SetActive(false);
-        
-        foreach (var field in fields)
-            field.Distance = -1;
-
-        createHeatmapButton.interactable = false;
-        
-        fields[goalIndex.x, goalIndex.y].Distance = 0;
-        tileQueue.Enqueue(fields[goalIndex.x, goalIndex.y]);
-
-        while (tileQueue.Count > 0)
-        {
-            var tile = tileQueue.Dequeue();
-
-            if (tile.IsBlock)
-                continue;
-
-            SetTileDistance(ref tile);
-        }
-
-        foreach (var tile in drawTiles)
-            tile.Value.gameObject.SetActive(false);
-        
-        createHeatmapButton.interactable = true;
-        
-        foreach (var field in fields)
-        {
-            var tile = field;
-            SetTileVector(ref tile);
         }
     }
 }
