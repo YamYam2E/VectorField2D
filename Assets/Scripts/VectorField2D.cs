@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Tilemaps;
-using Button = UnityEngine.UI.Button;
 using Random = UnityEngine.Random;
 
 public partial class VectorField2D : MonoBehaviour
 {
+    [SerializeField] private bool isShowTileArrow;
+    [SerializeField] private bool isShowTileDistance;
+    
     [SerializeField] private TextMeshPro tileText;
     [SerializeField] private Transform tileArrow;
     [SerializeField] private Chaser chaser;
@@ -40,7 +42,7 @@ public partial class VectorField2D
     {
         Initialize();
         CreateFields();
-        CreateChaser(20);
+        CreateChaser(800);
         CreateDrawObjects();
         
         UpdateGoalPosition();
@@ -132,11 +134,14 @@ public partial class VectorField2D
         foreach (var field in fields)
             field.Distance = -1;
 
-        CreateHeatMap_internal();
+        CreateHeatMap_internal(isShowTileDistance);
     }
 
-    private void CreateHeatMap_internal(bool drawDistance = false)
+    private void CreateHeatMap_internal(bool drawDistance)
     {
+        if (goalIndex.x < 0 || goalIndex.x >= fieldWidth || goalIndex.y < 0 || goalIndex.y >= fieldHeight)
+            return;
+
         fields[goalIndex.x, goalIndex.y].Distance = 0;
 
         if (drawDistance)
@@ -206,8 +211,8 @@ public partial class VectorField2D
 
     private void CreateVectorField()
     {
-        foreach (var tile in drawTiles)
-            tile.Value.gameObject.SetActive(false);
+        // foreach (var tile in drawTiles)
+        //     tile.Value.gameObject.SetActive(false);
         
         foreach (var arrow in drawArrows)
             arrow.Value.gameObject.SetActive(false);
@@ -247,13 +252,13 @@ public partial class VectorField2D
             {
                 var x = tile.Index.x + directions[index].x;
                 var y = tile.Index.y + directions[index].y;
-
+        
                 if (x < 0 || x >= groundTilemap.size.x || y < 0 || y >= groundTilemap.size.y)
                     continue;
-
+        
                 if (fields[x, y].IsBlock)
                     continue;
-
+        
                 if (minimumDistance > fields[x, y].Distance)
                 {
                     minimumDistance = fields[x, y].Distance;
@@ -271,10 +276,20 @@ public partial class VectorField2D
                 if (x < 0 || x >= groundTilemap.size.x || y < 0 || y >= groundTilemap.size.y)
                     continue;
 
-                direction += fields[x, y].Distance * directions[index];    
+                direction += fields[x, y].Distance * directions[index];
             }
         }
+
+        if (tile.Index != goalIndex && direction == Vector2.zero)
+        {
+            // 8방향 모든 벡터의 가중치를 합하다보면
+            // 방향이 0이 되는 경우가 있음
+            // 그때는 강제로 골 방향으로 방향 선정
+            // 수식은 마지막에 방향을 - 시키기 때문에 반대로 값을 넣어야 함
+            direction = tile.Position - goalIndex;
+        }
         
+        direction = direction.normalized;
         tile.Direction = -direction;
         SetArrowAngle(ref tile);
     }
@@ -288,7 +303,7 @@ public partial class VectorField2D
         
         var angle = Math.Atan2(tile.Direction.y, tile.Direction.x) * (180f / Math.PI);
         arrow.eulerAngles = new Vector3(0, 0, (float)angle);
-        arrow.gameObject.SetActive(true);
+        arrow.gameObject.SetActive(isShowTileArrow);
     }
 
     #endregion
@@ -341,14 +356,14 @@ public partial class VectorField2D
         if (directions.Count != 0)
             return;
 
-        directions.Add(new Vector2Int { x = 1, y = 0 });
-        directions.Add(new Vector2Int { x = -1, y = 0 });
-        directions.Add(new Vector2Int { x = 0, y = 1 });
-        directions.Add(new Vector2Int { x = 0, y = -1 });
-        directions.Add(new Vector2Int { x = 1, y = 1 });
-        directions.Add(new Vector2Int { x = 1, y = -1 });
-        directions.Add(new Vector2Int { x = -1, y = -1 });
-        directions.Add(new Vector2Int { x = -1, y = 1 });
+        directions.Add(new Vector2Int(1, 0));
+        directions.Add(new Vector2Int(-1, 0));
+        directions.Add(new Vector2Int(0, 1));
+        directions.Add(new Vector2Int(0, -1));
+        directions.Add(new Vector2Int(1, 1));
+        directions.Add(new Vector2Int(1, -1));
+        directions.Add(new Vector2Int(-1, -1));
+        directions.Add(new Vector2Int(-1, 1));
     }
 
     public Vector2 GetDirection(Vector3 position)
